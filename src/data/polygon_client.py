@@ -1,55 +1,133 @@
-
-import os, time
-import requests
+import os
+import time
 import pandas as pd
-from datetime import datetime
-from pathlib import Path
-from dotenv import load_dotenv
+import requests
+from datetime import datetime, timedelta
 
-load_dotenv()
 
 class PolygonClient:
-    def __init__(self, api_key_env='POLYGON_API_KEY', cache_dir='data'):
-        self.api_key = os.getenv(api_key_env)
-        self.cache_dir = Path(cache_dir)
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.base = 'https://api.polygon.io'
-        self.cache_path = None
+    """
+    Polygon.io API client for fetching, caching, and loading historical stock data.
+    """
 
-    def _daily_url(self, symbol, from_date=None, to_date=None):
-        return f"{self.base}/v2/aggs/ticker/{symbol}/range/1/day/{from_date}/{to_date}?adjusted=true&sort=asc&limit=50000&apiKey={self.api_key}"
-
-    def download_daily(self, symbol, from_date='1900-01-01', to_date=None):
+    def __init__(self, api_key=None, cache_dir="data/cache"):
+        self.api_key = api_key or os.getenv("POLYGON_API_KEY")
         if not self.api_key:
-            raise ValueError('POLYGON_API_KEY not set in environment. Copy .env.example to .env and set it.')
-        if to_date is None:
-            to_date = datetime.utcnow().strftime('%Y-%m-%d')
-        url = self._daily_url(symbol, from_date, to_date)
-        resp = requests.get(url, timeout=30)
-        if resp.status_code == 429:
-            raise RuntimeError('Rate limited by Polygon.io (429). Consider paid plan or slower requests.')
-        resp.raise_for_status()
-        data = resp.json()
-        if 'results' not in data:
-            raise RuntimeError(f'No results returned: {data}')
-        rows = []
-        for r in data['results']:
-            rows.append({
-                't': pd.to_datetime(r['t'], unit='ms'),
-                'o': r['o'],
-                'h': r['h'],
-                'l': r['l'],
-                'c': r['c'],
-                'v': r['v'],
-            })
-        df = pd.DataFrame(rows).set_index('t').sort_index()
-        self.cache_path = str(self.cache_dir / f"{symbol}_daily.parquet")
-        df.to_parquet(self.cache_path)
+            raise ValueError("POLYGON_API_KEY not set. Please export it or add it to your .env file.")
+        self.base_url = "https://api.polygon.io/v2"
+        self.cache_dir = cache_dir
+        os.makedirs(self.cache_dir, exist_ok=True)
+
+    # ------------------------------------------------------------------
+    # Internal request helper with retry logic
+    # ------------------------------------------------------------------
+    def _request(self, url, params=None, max_retries=3):
+        params = params or {}
+        params["apiKey"] = self.api_key
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                r = requests.get(url, params=params, timeout=15)
+                if r.status_code == 200:
+                    return r.json()
+                else:
+                    print(f"[!] HTTP {r.status_code} from Polygon API: {r.text}")
+            except requests.exceptions.RequestException as e:
+                print(f"[!] API request failed (attempt {attempt}/{max_retries}): {e}")
+            time.sleep(2 * attempt)
+
+        print("[!] All retries failed.")
+        return None
+
+    # ------------------------------------------------------------------
+    # Fetch and process historical data
+    # ------------------------------------------------------------------
+    def get_historic_data(self, symbol, start="2010-01-01", end=None):
+        """
+        Fetch historical daily OHLCV data for the given symbol.
+        Returns a pandas DataFrame.
+        """
+        if not end:
+            end = datetime.now().strftime("%Y-%m-%d")
+
+        print(f"Downloading {symbol} data from {start} to {end}...")
+
+        url = f"{self.base_url}/aggs/ticker/{symbol}/range/1/day/{start}/{end}"
+        data = self._request(url)
+
+        if not data or "results" not in data:
+            print(f"[!] No data received for {symbol}. Check your API key or symbol.")
+            return pd.DataFrame()
+
+        results = data.get("results", [])
+        if not results:
+            print(f"[!] No results found for {symbol}.")
+            return pd.DataFrame()
+
+        # Convert to DataFrame
+        df = pd.DataFrame(results)
+        if df.empty:
+            print(f"[!] Empty dataframe for {symbol}.")
+            return pd.DataFrame()
+
+        # Convert timestamps and rename columns
+        df["t"] = pd.to_datetime(df["t"], unit="ms")
+        df.rename(columns={
+            "t": "date",
+            "o": "open",
+            "h": "high",
+            "l": "low",
+            "c": "close",
+            "v": "volume"
+        }, inplace=True)
+
+        # Sort chronologically and reset index
+        df.sort_values("date", inplace=True)
+        df.reset_index(drop=True, inplace=True)
+
         return df
 
-    def load_cached(self, symbol='TQQQ', frequency='1d'):
-        path = self.cache_dir / f"{symbol}_daily.parquet"
-        if not path.exists():
-            raise FileNotFoundError(f"Cached data not found at {path}. Run update-data first.")
-        df = pd.read_parquet(path)
-        return df
+    # ------------------------------------------------------------------
+    # Save data to local cache
+    # ------------------------------------------------------------------
+    def update_data(self, symbol):
+        """
+        Fetch latest data for a symbol and save it to a local parquet cache.
+        """
+        df = self.get_historic_data(symbol)
+
+        if df is None or df.empty:
+            print(f"[!] No data to save for {symbol}. Skipping cache write.")
+            return
+
+        cache_path = os.path.join(self.cache_dir, f"{symbol}.parquet")
+        try:
+            df.to_parquet(cache_path)
+            print(f"[✓] Data saved to cache: {cache_path}")
+        except Exception as e:
+            print(f"[!] Failed to save parquet for {symbol}: {e}")
+
+    # ------------------------------------------------------------------
+    # Load data from local cache
+    # ------------------------------------------------------------------
+    def load_cached(self, symbol):
+        """
+        Load cached parquet file for a symbol if available.
+        Returns a pandas DataFrame.
+        """
+        cache_path = os.path.join(self.cache_dir, f"{symbol}.parquet")
+
+        if not os.path.exists(cache_path):
+            print(f"[!] No cached data found for {symbol}. Try running update-data first.")
+            return None
+
+        try:
+            df = pd.read_parquet(cache_path)
+            if df is None or df.empty:
+                print(f"[!] Cached file for {symbol} is empty.")
+                return None
+            print(f"[✓] Loaded cached data for {symbol} from {cache_path}")
+            return df
+        except Exception as e:
+            print(f"[!] Failed to read cached parquet for {symbol}: {e}")
+            return None

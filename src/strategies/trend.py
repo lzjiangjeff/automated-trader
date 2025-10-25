@@ -1,6 +1,6 @@
 
 import pandas as pd
-def strategy(df, fast=10, slow=50):
+def strategy(df, fast=20, slow=100):
     price = df['c']
     ma_fast = price.rolling(fast).mean()
     ma_slow = price.rolling(slow).mean()
