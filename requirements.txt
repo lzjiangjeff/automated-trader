@@ -6,3 +6,7 @@ requests
 python-dotenv
 pytest
 tabulate
+matplotlib
+pyarrow
+fastparquet
+
