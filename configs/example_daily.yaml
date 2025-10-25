@@ -1,0 +1,26 @@
+
+data:
+  source: polygon
+  symbol: TQQQ
+  frequency: 1d
+  local_cache: ./data/TQQQ_daily.parquet
+
+execution:
+  mode: backtest
+  ib:
+    host: localhost
+    port: 7497
+    client_id: 1
+
+risk:
+  per_trade_risk_pct: 1.0
+  max_drawdown_pct: 30
+  max_leverage: 3.0
+  stop_loss_pct: 10.0
+  trailing_stop: true
+
+backtest:
+  start_date: 1900-01-01
+  end_date: today
+  commission_per_trade: 0.005
+  slippage_model: percentage

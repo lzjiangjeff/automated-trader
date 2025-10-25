@@ -1,0 +1,8 @@
+
+pandas>=1.5
+numpy>=1.23
+pyyaml
+requests
+python-dotenv
+pytest
+tabulate
