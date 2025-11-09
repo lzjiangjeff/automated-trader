@@ -1,0 +1,90 @@
+# TQQQ Mean-Reversion Only Configuration
+# Research Only / Not Financial Advice
+
+symbol:
+  primary: TQQQ
+  context:
+    - QQQ
+    - VIX
+
+data:
+  start_date: "2012-01-01"
+  end_date: null
+  interval: "1d"
+  cache_dir: "data/"
+
+strategies:
+  trend_ema:
+    enabled: false
+  
+  breakout_momentum:
+    enabled: false
+  
+  mean_reversion:
+    enabled: true
+    lookback: 20
+    std_dev: 2.5
+    adx_threshold: 18
+    bb_width_quantile: 0.3
+  
+  volatility_overlay:
+    enabled: true
+    atr_period: 14
+    vol_target_annual: 0.25
+    min_size_mult: 0.5
+    max_size_mult: 1.5
+  
+  regime_filter:
+    enabled: true
+    qqq_sma_period: 200
+    vix_threshold: 25
+    risk_off_exposure: 0.25
+  
+  ensemble:
+    enabled: false
+
+risk:
+  initial_capital: 100000
+  per_trade_risk_pct: 0.75  # Lower risk for MR
+  max_net_exposure: 1.0
+  min_net_exposure: -1.0
+  max_gross_exposure: 1.5
+  stop_atr_mult: 2.0  # Tighter stops for MR
+  trailing_stop_atr_mult: 1.2
+  time_stop_bars: 15
+  daily_loss_limit_pct: 2.0
+  max_drawdown_pct: 15.0
+  drawdown_recovery_exposure: 0.2
+
+costs:
+  commission_per_share: 0.005
+  slippage_bps: 5
+  market_impact_bps: 3
+
+backtesting:
+  walk_forward:
+    train_years: 3
+    test_years: 1
+    min_train_years: 2
+  benchmark_symbols:
+    - TQQQ
+    - QQQ
+
+reporting:
+  output_dir: "out/"
+  generate_charts: true
+  generate_html: true
+  chart_format: "png"
+  save_trade_log: true
+  save_metrics_json: true
+
+execution:
+  mode: "paper"
+  ibkr:
+    host: "127.0.0.1"
+    port: 7497
+    client_id: 1
+    timeout: 30
+  risk_guard: true
+  kill_switch_enabled: true
+

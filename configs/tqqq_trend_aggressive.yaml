@@ -1,0 +1,111 @@
+# TQQQ Trend Aggressive Configuration
+# Research Only / Not Financial Advice
+
+symbol:
+  primary: TQQQ
+  context:
+    - QQQ
+    - VIX
+    - ^TNX
+
+data:
+  start_date: "2012-01-01"
+  end_date: null
+  interval: "1d"
+  cache_dir: "data/"
+
+strategies:
+  trend_ema:
+    enabled: true
+    ema_fast: 8
+    ema_medium: 18
+    ema_slow: 45
+    rsi_period: 14
+    rsi_long_threshold: 50
+    rsi_short_threshold: 45
+    long_only: true
+    regime_filter_enabled: false
+    dual_timeframe_enabled: false
+    pullback_tolerance: 0.03
+    continuation_tolerance: 0.025
+    min_trend_strength: 0.0
+    max_volatility: 0.4
+    min_bars_between_signals: 1
+  
+  breakout_momentum:
+    enabled: true
+    lookback: 20
+    rvol_threshold: 1.0
+    adx_threshold: 12
+    atr_buffer_mult: 0.2
+  
+  mean_reversion:
+    enabled: false
+  
+  volatility_overlay:
+    enabled: true
+    atr_period: 14
+    vol_target_annual: 0.3
+    min_size_mult: 0.7
+    max_size_mult: 1.6
+  
+  regime_filter:
+    enabled: false
+  
+  ensemble:
+    enabled: false
+
+risk:
+  initial_capital: 100000
+  per_trade_risk_pct: 4.0
+  max_net_exposure: 2.5
+  min_net_exposure: -1.0
+  max_gross_exposure: 3.5
+  stop_atr_mult: 1.8
+  trailing_stop_atr_mult: 1.0
+  trailing_start_r: 1.0
+  trailing_mid_r: 2.0
+  trailing_end_r: 5.0
+  trailing_start_mult: 1.1
+  trailing_mid_mult: 0.8
+  trailing_end_mult: 0.5
+  time_stop_bars: 120
+  daily_loss_limit_pct: 4.0
+  max_drawdown_pct: 35.0
+  drawdown_recovery_exposure: 0.5
+  pyramid_enabled: true
+  pyramid_max_adds: 3
+  pyramid_add_thresholds: [1.0, 2.0, 3.0]
+  pyramid_add_scale: 0.7
+
+costs:
+  commission_per_share: 0.005
+  slippage_bps: 6
+  market_impact_bps: 4
+
+backtesting:
+  walk_forward:
+    train_years: 3
+    test_years: 1
+    min_train_years: 2
+  benchmark_symbols:
+    - TQQQ
+    - QQQ
+
+reporting:
+  output_dir: "out/"
+  generate_charts: true
+  generate_html: true
+  chart_format: "png"
+  save_trade_log: true
+  save_metrics_json: true
+
+execution:
+  mode: "paper"
+  ibkr:
+    host: "127.0.0.1"
+    port: 7497
+    client_id: 3
+    timeout: 30
+  risk_guard: true
+  kill_switch_enabled: true
