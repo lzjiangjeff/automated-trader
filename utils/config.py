@@ -31,23 +31,23 @@ class TrendEMAConfig(StrategyConfig):
     ema_medium: int = 26
     ema_slow: int = 55
     rsi_period: int = 14
-    rsi_long_threshold: float = 52.0
+    rsi_long_threshold: float = 50.0
     rsi_short_threshold: float = 45
     long_only: bool = True
     regime_filter_enabled: bool = True
     regime_sma_period: int = 200
-    dual_timeframe_enabled: bool = True
+    dual_timeframe_enabled: bool = False
     dual_timeframe_ema: int = 100
-    pullback_tolerance: float = 0.04
-    continuation_tolerance: float = 0.03
+    pullback_tolerance: float = 0.03
+    continuation_tolerance: float = 0.04
     min_trend_strength: float = 0.0
-    max_volatility: float = 0.35
+    max_volatility: float = 0.45
     min_bars_between_signals: int = 1
     exit_buffer: float = 0.015
     fast_buffer: float = 0.0
     volatility_time_stop_bars: int = 10
     volatility_time_stop_threshold: float = 0.02
-    adx_threshold: float = 20.0
+    adx_threshold: float = 0.0
 
 
 class BreakoutMomentumConfig(StrategyConfig):

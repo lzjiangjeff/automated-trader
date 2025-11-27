@@ -19,7 +19,8 @@ class Trade:
         strategy: str = "",
         stop_mult: float = 0.0,
         trailing_mult: float = 0.0,
-        is_pyramid: bool = False
+        is_pyramid: bool = False,
+        entry_type: str = "standard"
     ):
         """Initialize trade."""
         self.entry_date = entry_date
@@ -44,6 +45,7 @@ class Trade:
         self.bars_in_trade = 0
         self.max_adverse_excursion = 0.0
         self.max_favorable_excursion = 0.0
+        self.entry_type = entry_type
     
     def update_trailing_stop(
         self, current_price: float, atr: float, default_trailing_mult: float = 1.5
@@ -194,7 +196,8 @@ class RiskManager:
         strategy: str = "",
         stop_mult: Optional[float] = None,
         trailing_mult: Optional[float] = None,
-        is_pyramid: bool = False
+        is_pyramid: bool = False,
+        entry_type: str = "standard"
     ) -> Optional[Trade]:
         """Enter a new trade with optional dynamic stop settings."""
         if not self.can_enter_trade(signal, price, atr):
@@ -214,7 +217,8 @@ class RiskManager:
             strategy=strategy,
             stop_mult=stop_multiplier,
             trailing_mult=trailing_multiplier,
-            is_pyramid=is_pyramid
+            is_pyramid=is_pyramid,
+            entry_type=entry_type
         )
         
         self.positions.append(trade)
@@ -359,7 +363,10 @@ class RiskManager:
     def can_pyramid(self, signal: int, strategy_name: str) -> Optional[tuple[Trade, float]]:
         if not self.pyramid_enabled:
             return None
-        same_trades = [t for t in self.positions if t.signal == signal and t.strategy == strategy_name]
+        same_trades = [
+            t for t in self.positions
+            if t.signal == signal and t.strategy == strategy_name and t.entry_type != 'probe'
+        ]
         if not same_trades:
             return None
         base_trade = same_trades[0]

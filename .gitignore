@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Data
+data/
+*.csv
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+*.db
+*.sqlite
+*.sqlite3
+
+# Output
+out/
+reports/
+*.html
+*.png
+*.pdf
+
+# Logs
+logs/
+*.log
+
+# Config (sensitive)
+configs/*_live.yaml
+configs/*_secrets.yaml
+
+# OS
+.DS_Store
+Thumbs.db
+

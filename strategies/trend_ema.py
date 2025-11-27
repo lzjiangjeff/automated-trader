@@ -14,6 +14,8 @@ class TrendEMAStrategy(BaseStrategy):
         """Go long on fresh bullish crossovers above higher timeframe trend."""
         self.validate_data(df)
         signals = pd.Series(0, index=df.index, name='signal')
+        entry_type = pd.Series('none', index=df.index, name='entry_type')
+        size_factor = pd.Series(1.0, index=df.index, name='size_factor')
         
         config = self.config
         ema_fast = config.get('ema_fast', 12)
@@ -90,16 +92,29 @@ class TrendEMAStrategy(BaseStrategy):
         if adx_threshold and 'adx' in df.columns:
             adx_ok = (df['adx'] > adx_threshold).fillna(False)
 
-        # Volatility filter using ATR/price
-        vol_ok = pd.Series(True, index=df.index)
-        effective_max_vol = max_volatility if max_volatility and max_volatility > 0 else None
-        if effective_max_vol:
-            atr_series = df.get('atr')
-            if atr_series is not None:
-                volatility = (atr_series / df['close']).fillna(method='ffill')
-                vol_ok = (volatility < effective_max_vol).fillna(True)
+        # Volatility filters
+        probe_vol_ok = pd.Series(True, index=df.index)
+        full_vol_ok = pd.Series(True, index=df.index)
+        probe_max_vol = 0.55
+        full_max_vol = max_volatility if max_volatility and max_volatility > 0 else None
+        atr_series = df.get('atr')
+        if atr_series is not None:
+            volatility = (atr_series / df['close']).fillna(method='ffill')
+            probe_vol_ok = (volatility < probe_max_vol).fillna(True)
+            if full_max_vol:
+                full_vol_ok = (volatility < full_max_vol).fillna(True)
+        else:
+            full_vol_ok = probe_vol_ok = pd.Series(True, index=df.index)
 
-        # Combine filters for long entries
+        # Combine filters for probe entries
+        probe_trigger = (
+            cross_medium &
+            regime_condition &
+            dual_condition &
+            probe_vol_ok
+        ) & (~bullish_trend)
+
+        # Combine filters for full entries
         trigger = (cross_medium | swing_break) & (df['close'] > df[ema_fast_col] * (1 + fast_buffer))
         raw_long = (
             trigger &
@@ -108,8 +123,24 @@ class TrendEMAStrategy(BaseStrategy):
             dual_condition &
             rsi_ok &
             adx_ok &
-            vol_ok
+            full_vol_ok
         ).fillna(False)
+
+        signals.loc[probe_trigger] = 1
+        entry_type.loc[probe_trigger] = 'probe'
+        size_factor.loc[probe_trigger] = 0.5
+
+        signals.loc[raw_long] = 1
+        entry_type.loc[raw_long] = 'full'
+        size_factor.loc[raw_long] = 1.0
+
+        # Promote probe to full when price clears SMA200
+        if regime_enabled:
+            probe_upgrade = (
+                entry_type == 'probe'
+            ) & (df['close'] > df[regime_col]).fillna(False)
+            entry_type.loc[probe_upgrade] = 'full'
+            size_factor.loc[probe_upgrade] = 1.0
         
         # Cooldown
         if cooldown > 1 and raw_long.any():
@@ -146,7 +177,9 @@ class TrendEMAStrategy(BaseStrategy):
         self._ema_slow_col = ema_slow_col
         self._exit_buffer = exit_buffer
         self._long_only = long_only
-        return signals.to_frame()
+        self._entry_type_series = entry_type
+        self._size_factor_series = size_factor
+        return pd.concat([signals, entry_type, size_factor], axis=1)
 
     def should_exit(self, df: pd.DataFrame) -> bool:
         if len(df) == 0:

@@ -21,23 +21,23 @@ strategies:
     ema_medium: 26
     ema_slow: 55
     rsi_period: 14
-    rsi_long_threshold: 52.0
+    rsi_long_threshold: 50.0
     rsi_short_threshold: 45
     long_only: true
     regime_filter_enabled: true
     regime_sma_period: 200
-    dual_timeframe_enabled: true
+    dual_timeframe_enabled: false
     dual_timeframe_ema: 100
-    pullback_tolerance: 0.04
-    continuation_tolerance: 0.03
+    pullback_tolerance: 0.03
+    continuation_tolerance: 0.04
     min_trend_strength: 0.0
-    max_volatility: 0.35
+    max_volatility: 0.45
     min_bars_between_signals: 1
     exit_buffer: 0.015
     fast_buffer: 0.0
     volatility_time_stop_bars: 10
     volatility_time_stop_threshold: 0.02
-    adx_threshold: 20.0
+    adx_threshold: 0.0
   
   breakout_momentum:
     enabled: true

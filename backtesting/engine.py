@@ -139,28 +139,52 @@ class BacktestEngine:
                 signals_df = strategy.generate_signals(current_data, context)
                 if 'signal' not in signals_df.columns or len(signals_df) == 0:
                     continue
-                
+
                 signal = signals_df.iloc[-1]['signal']
                 if signal == 0:
                     continue
-                
+
                 strategy_name = strategy.__class__.__name__
-                
+
+                entry_type = signals_df.iloc[-1].get('entry_type', 'full')
+                size_fraction = float(signals_df.iloc[-1].get('size_factor', 1.0))
+                size_fraction = max(size_fraction, 0.1)
+
+                direction = 1 if signal > 0 else -1
+
+                # Prevent duplicate probes
+                if entry_type == 'probe':
+                    probe_exists = any(
+                        t.strategy == strategy_name and t.entry_type == 'probe' and (1 if t.signal > 0 else -1) == direction
+                        for t in self.risk_manager.positions
+                    )
+                    if probe_exists:
+                        continue
+
                 # Determine whether this is a fresh entry or a pyramid add
                 same_signal_trades = [
                     t for t in self.risk_manager.positions
-                    if t.signal == signal and t.strategy == strategy_name
+                    if (1 if t.signal > 0 else -1) == direction and t.strategy == strategy_name and t.entry_type != 'probe'
                 ]
                 is_pyramid = False
                 pyramid_threshold = None
                 if same_signal_trades:
-                    pyramid_check = self.risk_manager.can_pyramid(signal, strategy_name)
+                    pyramid_check = self.risk_manager.can_pyramid(direction, strategy_name)
                     if pyramid_check:
                         _, pyramid_threshold = pyramid_check
                         is_pyramid = True
                     else:
                         continue
-                
+
+                probe_positions = [
+                    t for t in self.risk_manager.positions
+                    if t.strategy == strategy_name and t.entry_type == 'probe' and (1 if t.signal > 0 else -1) == direction
+                ]
+                if entry_type == 'full' and probe_positions:
+                    size_fraction = min(size_fraction, 0.5)
+                elif entry_type == 'probe':
+                    size_fraction = min(size_fraction, 0.5)
+
                 # Apply regime filter exposure
                 exposure_mult = 1.0
                 if regime_filter:
@@ -177,7 +201,7 @@ class BacktestEngine:
                 
                 # Check if we can enter trade
                 if not self.risk_manager.can_enter_trade(
-                    signal,
+                    direction,
                     current_row['close'],
                     current_row.get('atr', current_row['close'] * 0.02)
                 ):
@@ -207,6 +231,7 @@ class BacktestEngine:
                         size_mult = 1.0
                 
                 size_mult *= exposure_mult
+                size_mult *= size_fraction
                 if is_pyramid:
                     size_mult *= self.risk_manager.pyramid_share_scale()
                 size_mult = max(size_mult, 0.2)
@@ -226,13 +251,14 @@ class BacktestEngine:
                 trade = self.risk_manager.enter_trade(
                     date=date,
                     price=entry_price,
-                    signal=signal,
+                    signal=direction,
                     atr=atr,
                     shares=shares,
                     strategy=strategy_name,
                     stop_mult=stop_mult,
                     trailing_mult=trailing_mult,
-                    is_pyramid=is_pyramid
+                    is_pyramid=is_pyramid,
+                    entry_type=entry_type
                 )
                 if trade and pyramid_threshold is not None:
                     trade.pyramid_trigger = pyramid_threshold
@@ -349,7 +375,8 @@ class BacktestEngine:
             'pnl': pnl_with_costs,
             'r_multiple': r_multiple,
             'bars_in_trade': trade.bars_in_trade,
-            'strategy': trade.strategy
+            'strategy': trade.strategy,
+            'entry_type': getattr(trade, 'entry_type', 'standard')
         })
     
     def _calculate_results(self, df: pd.DataFrame) -> Dict:
